@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纸上实验 · 全科书架</title>
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="stylesheet" href="./assets/shelf.css">
+</head>
+<body class="shelf-body">
+
+<div id="shelfApp">
+  <header class="shelf-top">
+    <div class="brand">
+      <span class="brand-mark">⚛</span>
+      <div class="brand-text">
+        <strong>纸上实验</strong>
+        <span>全科书架 · 小学到高中</span>
+      </div>
+    </div>
+
+    <div class="shelf-search">
+      <input id="searchInput" type="search" placeholder="搜书名、学科、年级…" autocomplete="off">
+    </div>
+
+    <div class="shelf-stats" id="shelfStats"></div>
+  </header>
+
+  <nav class="stage-tabs" id="stageTabs"></nav>
+  <nav class="grade-tabs" id="gradeTabs"></nav>
+
+  <main class="shelf-scroll" id="shelfScroll">
+    <div class="shelf-grid" id="shelfGrid"></div>
+    <div class="shelf-empty" id="shelfEmpty" hidden></div>
+  </main>
+
+  <footer class="shelf-foot">
+    <span id="footHint">点书脊进入 · 灰虚线 = 待上架</span>
+    <span class="foot-right" id="footPath"></span>
+  </footer>
+</div>
+
+<script type="module" src="./assets/shelf.js"></script>
+</body>
+</html>

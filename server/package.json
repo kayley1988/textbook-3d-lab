@@ -1,0 +1,11 @@
+{
+  "name": "textbook-3d-server",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "纸上实验 · 全科书架 本地服务",
+  "scripts": {
+    "seed": "node seed.js",
+    "start": "node api.js"
+  }
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纸上实验 · 中学物理 3D 能量实验室</title>
+<link rel="stylesheet" href="./assets/style.css">
+<script type="importmap">
+{ "imports": { "three": "./js/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">⚛</span>
+      <div class="brand-text">
+        <strong>纸上实验</strong>
+        <span>教材 · 3D 互动实验室</span>
+      </div>
+    </div>
+    <nav class="lesson-chips" id="chips"></nav>
+    <div class="topbar-meta" id="bookMeta">人教版 · 物理八年级下册</div>
+  </header>
+
+  <main class="workspace">
+    <aside class="panel-left" id="panel">
+      <div class="panel-scroll" id="panelScroll">
+        <div class="lesson-tag" id="lessonTag"></div>
+        <h1 class="lesson-title" id="lessonTitle"></h1>
+        <p class="lesson-lead" id="lessonLead"></p>
+
+        <section class="block">
+          <h2 class="block-h">概念</h2>
+          <div class="concept" id="concept"></div>
+        </section>
+
+        <section class="block formula-block">
+          <h2 class="block-h">核心公式</h2>
+          <div class="formula-card">
+            <div class="formula" id="formulaExpr"></div>
+            <div class="formula-note" id="formulaNote"></div>
+          </div>
+        </section>
+
+        <section class="block">
+          <h2 class="block-h">要点</h2>
+          <ul class="points" id="points"></ul>
+        </section>
+
+        <section class="block">
+          <h2 class="block-h">动手调一调</h2>
+          <div class="controls" id="controls"></div>
+          <div class="sim-actions">
+            <button class="btn btn-primary" id="btnPlay">▶ 开始</button>
+            <button class="btn" id="btnReset">↺ 重置</button>
+          </div>
+        </section>
+
+        <section class="block">
+          <h2 class="block-h">实时读数</h2>
+          <div class="readouts" id="readouts"></div>
+        </section>
+
+        <section class="block think-block">
+          <h2 class="block-h">想一想</h2>
+          <p class="think" id="think"></p>
+        </section>
+      </div>
+    </aside>
+
+    <section class="viewport" id="viewport">
+      <div class="stage" id="stage"></div>
+      <div class="labels" id="labels"></div>
+      <div class="book-hint" id="bookHint">装置悬空在书页上方 · 直接拖拽它移动 · 箭头指向知识点</div>
+      <div class="page-nav">
+        <button class="btn page-btn" id="btnPagePrev" title="上一跨页">⟨</button>
+        <span class="spread-info" id="spreadInfo">—</span>
+        <input class="page-input" id="pageInput" title="输入右页页码，回车跳转" inputmode="numeric">
+        <button class="btn page-btn" id="btnPageNext" title="下一跨页">⟩</button>
+        <span class="page-sep"></span>
+        <button class="btn page-btn" id="btnToc" title="教材目录">📖</button>
+        <button class="btn page-btn" id="btnPen" title="笔模式：在书页上划线批注">✏️</button>
+        <button class="btn page-btn" id="btnPenColor" title="切换笔颜色" style="color:#c2401e">●</button>
+        <button class="btn page-btn" id="btnPenClear" title="清除笔迹">🗑</button>
+      </div>
+      <div class="spread-tag" id="spreadTag"></div>
+      <div class="toc-panel hide" id="tocPanel">
+        <div class="toc-head">📖 教材目录 <span class="toc-legend">● 已有 3D 实验 · ○ 仅翻页</span><button class="toc-close" id="btnTocClose">✕</button></div>
+        <div class="toc-body" id="tocBody"></div>
+      </div>
+      <div class="loading-mask" id="loadingMask">
+        <div class="loading-card">
+          <div class="loading-book">📖</div>
+          <div class="loading-text" id="loadingText">正在打开教材…</div>
+        </div>
+      </div>
+      <div class="hud">
+        <div class="hud-hint">✋ 拖装置移动 · 拖空白旋转 · 滚轮缩放 · 右键平移</div>
+        <div class="energy-card" id="energyCard">
+          <div class="energy-head"><span id="energyTitle">能量账本</span><span class="energy-total" id="energyTotal"></span></div>
+          <div class="energy-stack" id="energyStack"></div>
+          <div class="energy-rows" id="energyRows"></div>
+        </div>
+      </div>
+      <div class="lesson-nav">
+        <button class="btn" id="btnPrev">← 上一课</button>
+        <span class="nav-pos" id="navPos"></span>
+        <button class="btn" id="btnNext">下一课 →</button>
+      </div>
+    </section>
+  </main>
+</div>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

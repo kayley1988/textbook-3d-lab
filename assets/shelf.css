@@ -1,0 +1,132 @@
+/* ---------- 全科书架 ---------- */
+.shelf-body{overflow:hidden}
+#shelfApp{height:100vh;display:flex;flex-direction:column}
+
+/* 顶栏 */
+.shelf-top{
+  display:flex;align-items:center;gap:20px;
+  padding:12px 26px;border-bottom:1px solid var(--line);
+  background:rgba(255,253,248,.92);backdrop-filter:blur(8px);
+  flex:0 0 auto;
+}
+.shelf-search{flex:1;max-width:420px}
+.shelf-search input{
+  width:100%;padding:8px 14px;border:1px solid var(--line-2);border-radius:20px;
+  background:var(--paper);color:var(--ink);font-size:13.5px;font-family:inherit;outline:none;
+  transition:border-color .18s, box-shadow .18s;
+}
+.shelf-search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,111,30,.12)}
+.shelf-search input::placeholder{color:#a89e8a}
+
+.shelf-stats{display:flex;gap:18px;font-size:12px;color:var(--ink-2);white-space:nowrap}
+.shelf-stats b{display:block;font:700 17px/1.2 Georgia,serif;color:var(--ink)}
+.shelf-stats span{font-size:11px;letter-spacing:.04em}
+
+/* 学段 / 年级 */
+.stage-tabs{
+  display:flex;gap:8px;padding:14px 26px 6px;flex:0 0 auto;
+}
+.stage-tab{
+  border:1px solid transparent;background:none;cursor:pointer;
+  font:700 15px/1 Georgia,serif;letter-spacing:.08em;color:var(--ink-2);
+  padding:9px 22px;border-radius:22px;transition:all .18s;
+}
+.stage-tab:hover{color:var(--ink);background:rgba(176,141,79,.10)}
+.stage-tab.on{
+  background:var(--ink);color:#fdf6ea;box-shadow:0 6px 16px rgba(60,48,28,.22);
+}
+.stage-tab .cnt{font-size:11px;opacity:.65;margin-left:6px;font-weight:400}
+
+.grade-tabs{
+  display:flex;gap:4px;padding:2px 26px 12px;flex:0 0 auto;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);
+}
+.grade-tab{
+  border:none;background:none;cursor:pointer;
+  font:400 13px/1 inherit;color:var(--ink-2);
+  padding:7px 14px;border-radius:9px;transition:all .15s;
+}
+.grade-tab:hover{background:rgba(176,141,79,.10);color:var(--ink)}
+.grade-tab.on{background:var(--accent-soft);color:var(--accent-deep);font-weight:700}
+
+/* 书架主体 */
+.shelf-scroll{flex:1;overflow-y:auto;padding:22px 26px 40px}
+.shelf-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:16px;align-items:start;
+}
+
+/* 学科卡片 */
+.subject-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px 16px;box-shadow:var(--shadow);
+  transition:box-shadow .2s, transform .2s;
+}
+.subject-card:hover{box-shadow:0 16px 38px rgba(80,60,30,.14);transform:translateY(-1px)}
+.sc-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.sc-name{font:700 16px/1 Georgia,serif;letter-spacing:.06em;color:var(--ink)}
+.sc-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;align-self:center}
+.sc-meta{font-size:11px;color:var(--ink-2);margin-left:auto;white-space:nowrap}
+.sc-meta b{color:var(--ink);font-weight:700}
+
+/* 书脊排 */
+.spines{display:flex;flex-wrap:wrap;gap:7px;align-items:flex-end;min-height:126px}
+
+.spine{
+  position:relative;width:38px;height:122px;border-radius:4px 3px 3px 4px;
+  display:flex;align-items:center;justify-content:center;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  font:600 10.5px/1.15 "PingFang SC","Microsoft YaHei",sans-serif;
+  letter-spacing:.04em;cursor:pointer;overflow:hidden;
+  border:1px solid rgba(0,0,0,.10);
+  box-shadow:1px 2px 5px rgba(60,48,28,.18), inset -2px 0 4px rgba(0,0,0,.14), inset 2px 0 0 rgba(255,255,255,.35);
+  transition:transform .16s, box-shadow .16s;
+  padding:6px 0;
+  text-align:center;
+}
+.spine:hover{transform:translateY(-6px);box-shadow:1px 8px 16px rgba(60,48,28,.28), inset -2px 0 4px rgba(0,0,0,.14)}
+.spine .sp-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:100%}
+.spine .sp-badge{
+  position:absolute;top:3px;left:50%;transform:translateX(-50%);
+  writing-mode:horizontal-tb;font-size:8px;background:rgba(255,255,255,.92);
+  color:#2fa36b;border-radius:6px;padding:0 4px;line-height:12px;font-weight:700;
+}
+
+/* 待上架 */
+.spine.off{
+  background:repeating-linear-gradient(135deg,rgba(0,0,0,.022) 0 6px,transparent 6px 12px), var(--paper-2);
+  border:1.5px dashed var(--line-2);color:#a89e8a;box-shadow:none;cursor:default;
+}
+.spine.off:hover{transform:none}
+.spine.off .sp-text{opacity:.72}
+
+/* 空态 */
+.shelf-empty{
+  text-align:center;color:var(--ink-2);font-size:13px;padding:70px 20px;line-height:2;
+}
+.shelf-empty .big{font-size:42px;display:block;margin-bottom:10px;opacity:.5}
+
+/* 底栏 */
+.shelf-foot{
+  flex:0 0 auto;display:flex;align-items:center;gap:14px;
+  padding:8px 26px;border-top:1px solid var(--line);
+  background:rgba(255,253,248,.9);font-size:11.5px;color:var(--ink-2);
+}
+.foot-right{margin-left:auto;font-family:ui-monospace,Consolas,monospace;font-size:10.5px;opacity:.7}
+
+/* 提示气泡 */
+.toast{
+  position:fixed;left:50%;bottom:58px;transform:translateX(-50%) translateY(10px);
+  background:var(--ink);color:#fdf6ea;font-size:12.5px;padding:9px 18px;border-radius:20px;
+  box-shadow:0 10px 26px rgba(0,0,0,.24);opacity:0;pointer-events:none;
+  transition:opacity .22s, transform .22s;z-index:99;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:760px){
+  .shelf-top{flex-wrap:wrap;gap:10px;padding:10px 14px}
+  .shelf-search{max-width:none;order:3;flex-basis:100%}
+  .stage-tabs,.grade-tabs{padding-left:14px;padding-right:14px}
+  .shelf-scroll{padding:14px}
+  .shelf-grid{grid-template-columns:1fr}
+}
