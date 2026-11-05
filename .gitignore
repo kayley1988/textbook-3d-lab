@@ -1,0 +1,35 @@
+# ---------- 版权内容：绝不入库 ----------
+# 人教版教材 PDF（受版权保护，仅本地个人学习使用）
+books/
+repo/
+# OCR 产物：源自教材正文
+ocr_index/
+books_toc/
+tree.json
+dl_list.txt
+
+# ---------- 第三方项目 ----------
+# 铜匠实验室（CC BY-NC 4.0），仅作本地视觉参考，非本项目代码
+ref_tongjiang/
+
+# ---------- 构建产物与临时文件 ----------
+out/
+audit/
+shot_*.png
+now_toc.png
+crop_*.png
+*.zip
+.playwright-cli/
+__pycache__/
+*.pyc
+
+# ---------- 数据库与运行时数据 ----------
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ---------- 依赖与环境 ----------
+node_modules/
+.DS_Store
+Thumbs.db
