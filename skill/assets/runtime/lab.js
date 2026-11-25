@@ -548,6 +548,122 @@ export function createStage(container, labelsEl) {
   return { renderer, scene, camera, controls, lightRig: rig, addLabel, updateLabels, clearLabels, resize };
 }
 
+/* ============================================================
+   逼真模式——Studio 软阴影（对标 Machine Skill LabKit）
+   开启后：
+   1. VSM 软阴影（radius 真正生效，阴影边缘柔和，不再锯齿）
+   2. 接触阴影盘（radial-gradient 贴地，物体落纸面有软影）
+   用法：const studio = enableStudio(stage, { radius: 7 }); studio.enable();
+   ============================================================ */
+export function enableStudio(stage, { radius = 7, contact = true } = {}) {
+  const { renderer, scene, lightRig } = stage;
+
+  // 1) VSM 软阴影：PCF 下 shadow.radius 无效，VSM 才吃 radius
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.VSMShadowMap;
+  lightRig.traverse(o => {
+    if (o.isDirectionalLight && o.castShadow) {
+      o.shadow.radius = radius;
+      o.shadow.blurSamples = 16;
+      o.shadow.bias = -0.0004;      // VSM 需要负 bias 避免自阴影
+      o.shadow.blurSamples = 16;
+    }
+  });
+
+  // 2) 接触阴影盘：物体落在纸面上的软影
+  let disc = null;
+  if (contact) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(128, 128, 18, 128, 128, 126);
+    grd.addColorStop(0, 'rgba(30,26,20,0.34)');
+    grd.addColorStop(0.45, 'rgba(30,26,20,0.14)');
+    grd.addColorStop(1, 'rgba(30,26,20,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 256, 256);
+    const tex = new THREE.CanvasTexture(c);
+    disc = new THREE.Mesh(
+      new THREE.PlaneGeometry(9, 9),
+      new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, depthWrite: false,
+        blending: THREE.MultiplyBlending, opacity: 0.9,
+      })
+    );
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 0.014;
+    disc.renderOrder = -1;
+    scene.add(disc);
+  }
+
+  return {
+    enable() { if (disc) disc.visible = true; },
+    disable() { if (disc) disc.visible = false; },
+    dispose() { if (disc) { scene.remove(disc); disc.geometry.dispose(); disc.material.map?.dispose(); disc.material.dispose(); } },
+  };
+}
+
+/* ============================================================
+   逼真模式——Studio 升级（对标 Machine Skill 的 LabKit 配方）
+   开启后：VSM 软阴影（radius 真正生效，产生柔和边缘）
+           + 接触阴影盘（物体落在纸面的软阴影）
+           + 材质增强（clearcoat 反光、环境强度提升）
+   用法：const studio = enableStudio(stage, { shadowRadius: 7, blurSamples: 16 })
+        studio.enable() 之后，主光阴影变柔、物体落地有软影
+   ============================================================ */
+export function enableStudio(stage, { shadowRadius = 7, blurSamples = 16, contactShadow = true, envIntensity = 0.9 } = {}) {
+  const { renderer, scene, lightRig } = stage;
+  const api = { enabled: false };
+
+  // 1) VSM 阴影：radius/blurSamples 生效，PCF 下 radius 无效
+  renderer.shadowMap.type = THREE.VSMShadowMap;
+  renderer.shadowMap.enabled = true;
+
+  // 2) 给所有 DirectionalLight 设软阴影
+  lightRig.traverse(o => {
+    if (o.isDirectionalLight && o.castShadow) {
+      o.shadow.radius = shadowRadius;
+      if ('blurSamples' in o.shadow) o.shadow.blurSamples = blurSamples;
+    }
+  });
+
+  // 3) 接触阴影盘：径向渐变贴图，贴在地面 y≈0.01
+  let contactPlane = null;
+  if (contactShadow) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(128, 128, 12, 128, 128, 122);
+    grd.addColorStop(0, 'rgba(30,25,20,0.42)');
+    grd.addColorStop(0.55, 'rgba(30,25,20,0.18)');
+    grd.addColorStop(1, 'rgba(30,25,20,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      blending: THREE.MultiplyBlending, opacity: 0.85,
+    });
+    contactPlane = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), mat);
+    contactPlane.rotation.x = -Math.PI / 2;
+    contactPlane.position.y = 0.012;
+    contactPlane.renderOrder = -1;
+    scene.add(contactPlane);
+  }
+
+  api.enable = () => {
+    api.enabled = true;
+    scene.traverse(o => {
+      if (o.isMesh && o.material && o.material.isMeshPhysicalMaterial) {
+        if (o.material.clearcoat === undefined) o.material.clearcoat = 0;
+        if (o.material.envMapIntensity === undefined) o.material.envMapIntensity = 0;
+        o.material.envMapIntensity = Math.max(o.material.envMapIntensity || 0, envIntensity);
+      }
+    });
+  };
+  api.disable = () => { api.enabled = false; if (contactPlane) contactPlane.visible = false; };
+  api.dispose = () => { if (contactPlane) { scene.remove(contactPlane); contactPlane.geometry.dispose(); contactPlane.material.dispose(); } };
+  return api;
+}
+
 /* ---------- 自动取景：把装置完整装进画面 ---------- */
 export function autoFrame(camera, controls, group, { pad = 1.18, force = false } = {}) {
   const box3 = new THREE.Box3().setFromObject(group);

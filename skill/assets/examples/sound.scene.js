@@ -1,9 +1,10 @@
 /* ============================================================
    《声音的传播》逼真版 —— 物理八上 P34
    鼓面真实振动（简谐振子） + 空气分子 GPU 粒子（疏密波）
-   + 声波光晕（bloom 后处理）
+   + 声波光晕（发光 sprite + 波前扩散）
+   + Studio 软阴影（VSM + 接触阴影，对标 Machine Skill LabKit）
    ============================================================ */
-import { M, box, cyl, sph, createStage, autoFrame, makeParticles, Phys, enableBloom, glowSprite } from '../runtime/lab.js';
+import { M, box, cyl, sph, createStage, autoFrame, makeParticles, Phys, enableStudio, glowSprite } from '../runtime/lab.js';
 import * as THREE from 'three';
 
 export const meta = {
@@ -232,15 +233,14 @@ export function create({ scene, camera, controls, addLabel, setReadouts }) {
       autoFrame(camera, controls, grp, { pad: 1.22, force: true });
     },
     ready(stage) {
-      // 开启 bloom 辉光（opt-in，逼真模式）
-      // bloom 默认关闭：SwiftShader 软渲染下 RT 合成会黑屏。
-      // 逼真感由 Additive 发光 sprite + 波前光晕承担，足够且稳定。
-      // 真机 GPU 上如需更强辉光，可启用下方代码。
-      if (false && !bloom) {
-        bloom = enableBloom(stage.renderer, stage.scene, stage.camera, { strength: 0.85, radius: 0.5, threshold: 0.82 });
-        bloom.enable();
-        window.__renderFn = bloom.render;
-      }
+      // 逼真模式：VSM 软阴影 + 接触阴影盘（对标 Machine Skill LabKit）
+      // 不依赖 RT 后处理，SwiftShader 下也稳定
+      try {
+        if (!window.__studio) {
+          window.__studio = enableStudio(stage, { shadowRadius: 7, blurSamples: 16, contactShadow: true });
+          window.__studio.enable();
+        }
+      } catch (e) { console.warn('studio:', e.message); }
     },
     speak() {
       try {

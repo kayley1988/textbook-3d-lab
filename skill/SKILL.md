@@ -137,6 +137,17 @@ window.__renderFn = bloom.render;  // 模板主循环检测 __renderFn 就用它
 
 **样板**：`assets/examples/sound.scene.js`《声音的传播》（鼓面真实振动 + 空气分子 GPU 粒子疏密波 + 声波光晕，教材 P34 当底座）。
 
+**④ `enableStudio(stage)` — Studio 软阴影（对标 Machine Skill LabKit，推荐常开）**
+```js
+import { enableStudio } from '../runtime/lab.js';
+const studio = enableStudio(stage, { radius: 7, contact: true });
+studio.enable();   // 在 impl.ready(stage) 里调用
+```
+- **VSM 软阴影**：`shadow.radius=7 + blurSamples=16`，阴影边缘柔和、无锯齿（PCF 下 radius 无效，必须 VSM）。
+- **接触阴影盘**：径向渐变贴地（MultiplyBlending），物体落在纸面上有软影，像真的放在桌面上。
+- **优点**：不依赖 RT 后处理，SwiftShader 软渲染下也稳定（不黑屏），比 `enableBloom` 更可靠。**推荐所有课件常开**。
+- **样板**：`sound.scene.js` 的 `ready()` 已接。
+
 ### 5. 自检（生成后必做）
 
 用 Edge 无头模式截图检查（playwright 对 file:// 支持不稳定，用这条命令）：
