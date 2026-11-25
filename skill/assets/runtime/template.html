@@ -6,17 +6,34 @@
 <title>{{TITLE}}</title>
 <script>
 /* 全局错误横幅：任何加载/运行错误都直接显示在页面上 */
-window.addEventListener('error', e => {
-  const msg = e.message || (e.target && (e.target.src || e.target.href)) || e.type || '未知错误';
-  let d = document.getElementById('__err');
-  if (!d) {
-    d = document.createElement('div');
-    d.id = '__err';
-    d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c2401e;color:#fff;padding:10px 16px;font:12px/1.6 Consolas,monospace;white-space:pre-wrap;word-break:break-all';
-    document.body.appendChild(d);
+(function () {
+  function show(m) {
+    let d = document.getElementById('__err');
+    if (!d) {
+      d = document.createElement('div');
+      d.id = '__err';
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c2401e;color:#fff;padding:10px 16px;font:12px/1.6 Consolas,monospace;white-space:pre-wrap;word-break:break-all';
+      document.body.appendChild(d);
+    }
+    d.textContent += '[加载错误] ' + m + '\n';
   }
-  d.textContent += '[加载错误] ' + msg + '\n';
-}, true);
+  window.__showErr = show;
+  window.addEventListener('error', e => {
+    let m;
+    if (e && e.message) {
+      m = e.message + (e.filename ? '  @' + e.filename.split('/').pop() + ':' + e.lineno : '');
+    } else if (e && e.target && (e.target.src || e.target.href)) {
+      m = '资源加载失败: ' + (e.target.src || e.target.href);
+    } else {
+      m = 'error（无详情：通常是模块/脚本被环境拦截）';
+    }
+    show(m);
+  }, true);
+  window.addEventListener('unhandledrejection', e => {
+    const r = e.reason;
+    show('Promise拒绝: ' + ((r && (r.stack || r.message)) || r));
+  });
+})();
 </script>
 <style>
 :root{
@@ -107,6 +124,15 @@ input[type=range]::-webkit-slider-thumb{
 }
 input[type=range]::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1.08)}
 
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
+.chip{
+  border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);
+  font:600 12px/1 inherit;padding:8px 11px;border-radius:8px;cursor:pointer;
+  transition:all .16s;letter-spacing:.02em;
+}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.chip.on{background:var(--ink);color:#fdf6ea;border-color:var(--ink)}
+
 .actions{display:flex;gap:8px;margin-top:14px}
 .btn{
   flex:1;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);
@@ -165,6 +191,21 @@ input[type=range]::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1
   .stage-wrap{flex:1;min-height:56vh}
   .readouts{grid-template-columns:1fr 1fr 1fr}
 }
+body.recording .panel{display:none}
+body.recording .stage-wrap{flex:1}
+body.recording .hint{display:none}
+/* 录屏字幕：底部大字幕，逐句切换 */
+#subtitle{
+  position:absolute;left:0;right:0;bottom:9%;text-align:center;
+  padding:0 8%;pointer-events:none;opacity:0;transition:opacity .18s;
+}
+#subtitle .line{
+  display:inline-block;background:rgba(28,26,22,.86);color:#fff;
+  font:500 30px/1.5 "PingFang SC","Microsoft YaHei",sans-serif;
+  padding:14px 28px;border-radius:14px;letter-spacing:.02em;
+  box-shadow:0 4px 18px rgba(0,0,0,.18);
+}
+body.recording #subtitle.on{opacity:1}
 </style>
 </head>
 <body>
@@ -177,10 +218,8 @@ input[type=range]::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1
   </main>
 </div>
 
-<script type="importmap">{{IMPORTMAP_JSON}}</script>
-<script type="module">
-import * as THREE from 'three';
-
+{{THREE_PRELUDE}}
+{{BOOK_PRELUDE}}
 /* ================= 运行时（由构建脚本内联） ================= */
 {{LAB}}
 
@@ -200,16 +239,21 @@ function panelHTML(m) {
     <h1>${esc(m.title)}</h1>
     ${m.lead ? `<p class="lead">${esc(m.lead)}</p>` : ''}
     ${m.concept ? `<section class="sec"><div class="sec-h">概念</div><div class="concept">${m.concept}</div></section>` : ''}
-    ${m.formula ? `<section class="sec"><div class="sec-h">核心公式</div>
+    ${m.formula ? `<section class="sec"><div class="sec-h">${m.formula.label || '核心公式'}</div>
       <div class="formula"><div class="expr">${m.formula.expr || ''}</div>
       ${m.formula.note ? `<div class="note">${m.formula.note}</div>` : ''}</div></section>` : ''}
     ${m.points?.length ? `<section class="sec"><div class="sec-h">要点</div>
       <ul class="points">${m.points.map(p => `<li>${p}</li>`).join('')}</ul></section>` : ''}
-    ${m.controls?.length ? `<section class="sec"><div class="sec-h">动手调一调</div>
+    ${(m.controls?.length || m.actions?.length || m.tts) ? `<section class="sec"><div class="sec-h">${m.controlsLabel || '动手调一调'}</div>
       <div id="ctrls"></div>
-      <div class="actions"><button class="btn btn-primary" id="btnPlay">▶ 开始</button>
-      <button class="btn" id="btnReset">↺ 重置</button></div></section>` : ''}
-    <section class="sec"><div class="sec-h">实时读数</div><div class="readouts" id="readouts"></div></section>
+      ${m.actions?.length ? `<div class="chips" id="chips">${m.actions.map(a =>
+        `<button class="chip${a.on ? ' on' : ''}" data-key="${a.key}">${a.label}</button>`).join('')}</div>` : ''}
+      <div class="actions">
+        ${m.controls?.length ? `<button class="btn btn-primary" id="btnPlay">▶ ${m.playLabel || '开始'}</button>
+        <button class="btn" id="btnReset">↺ 重置</button>` : ''}
+        ${m.tts ? `<button class="btn" id="btnTTS">🔊 ${m.ttsLabel || '读一遍'}</button>` : ''}
+      </div></section>` : ''}
+    <section class="sec"><div class="sec-h">${m.readoutLabel || '实时读数'}</div><div class="readouts" id="readouts"></div></section>
     ${m.question ? `<section class="sec"><div class="sec-h">想一想</div>
       <div class="think">${m.question}</div></section>` : ''}
   `;
@@ -250,6 +294,8 @@ function refresh() {
   if (impl.readouts) setReadouts(impl.readouts(P));
 }
 refresh();
+/* 初始化钩子：场景可在此启用后处理/bloom 等（必须在首帧渲染前） */
+if (impl.ready) impl.ready(stage);
 if (meta.cam) {
   camera.position.set(...meta.cam.pos);
   controls.target.set(...meta.cam.target);
@@ -263,6 +309,14 @@ $('btnReset')?.addEventListener('click', () => {
   impl.reset && impl.reset(P);
   refresh();
 });
+$('chips')?.addEventListener('click', e => {
+  const b = e.target.closest('.chip');
+  if (!b) return;
+  [...$('chips').children].forEach(x => x.classList.toggle('on', x === b));
+  if (impl.act) impl.act(b.dataset.key, P);
+  refresh();
+});
+$('btnTTS')?.addEventListener('click', () => impl.speak && impl.speak(P));
 
 /* --- 主循环 --- */
 let last = performance.now();
@@ -272,10 +326,65 @@ function tick(now) {
   controls.update();
   if (impl.update) impl.update(dt, P);
   stage.updateLabels();
-  stage.renderer.render(scene, camera);
+  if (window.__renderFn) window.__renderFn(scene, camera);
+  else stage.renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
-requestAnimationFrame(tick);
+
+/* --- 录制模式：?record=1 时暂停 rAF，改由外部逐帧步进（确定性渲染） --- */
+const RECORD = (() => {
+  try { return new URLSearchParams(location.search).get('record') === '1'; } catch (e) { return false; }
+})();
+
+if (RECORD) {
+  /* 隐藏面板/提示/拖拽交互，只留 3D 画面 + 标签 */
+  document.body.classList.add('recording');
+  document.querySelector('.hint')?.remove();
+  window.__rec = {
+    /** 推进一帧：dt 秒；返回帧计数 */
+    step(dt) {
+      controls.update();
+      if (impl.update) impl.update(dt, P);
+      stage.updateLabels();
+      stage.renderer.render(scene, camera);
+      /* 等标签位置写入 DOM 后再截图 */
+      return true;
+    },
+    /** 设定滑块参数（用于录制不同阶段） */
+    set(key, val) {
+      if (key in P) {
+        P[key] = val;
+        const el = document.getElementById('s_' + key);
+        if (el) { el.value = val; }
+        return true;
+      }
+      return false;
+    },
+    /** 触发动作（切字/切模式） */
+    act(key) { return impl.act ? impl.act(key, P) : false; },
+    play() { return impl.play ? impl.play(P) : false; },
+    reset() { return impl.reset ? impl.reset(P) : false; },
+    /** 设字幕（开始 + 自动结束显示时间） */
+    subtitle(text, hold = 3) {
+      let el = document.getElementById('subtitle');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'subtitle';
+        const wrap = document.querySelector('.stage-wrap');
+        wrap.appendChild(el);
+      }
+      el.innerHTML = `<span class="line">${text}</span>`;
+      el.classList.add('on');
+      clearTimeout(window.__subTimer);
+      if (text === '') el.classList.remove('on');
+      else window.__subTimer = setTimeout(() => { el.classList.remove('on'); }, hold * 1000);
+      return true;
+    },
+    ready: true,
+  };
+} else {
+  requestAnimationFrame(tick);
+}
 </script>
 </body>
 </html>

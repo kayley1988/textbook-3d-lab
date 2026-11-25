@@ -123,6 +123,159 @@ export const glassMat = (color = '#cfe6f2', opacity = 0.18) =>
 
 /* ---------- 柔光贴图（粒子用） ---------- */
 let _spriteTex = null;
+/* ============================================================
+   逼真模式（仿真动画）——粒子系统
+   GPU 粒子：THREE.Points + 自定义 shader，支持声波/烟雾/水流/光点
+   ============================================================ */
+export function makeParticles(scene, {
+  count = 400, size = 0.12, color = '#ffffff', opacity = 0.9,
+  mode = 'point',          // 'point' 圆点 | 'streak' 拖尾
+  additive = false,        // 发光叠加（能量/光）
+  drag = 0.0,              // 空气阻力 0~1
+  gravity = 0,             // 重力影响（负=下落）
+  life = 3.0,              // 粒子寿命秒
+  spawn = null,            // 发射器 fn(t) → {pos, vel, size} 或 null（手动）
+  fade = true,
+} = {}) {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  const vel = new Float32Array(count * 3);
+  const sizeArr = new Float32Array(count);
+  const age = new Float32Array(count); // 初始 0（活着），避免被 shader 的 vLife>1.0 discard
+  const maxLife = new Float32Array(count).fill(life);
+
+  // 初始化位置（随机散布）
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * 6;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * 4;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 6;
+    sizeArr[i] = size;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizeArr, 1));
+  geo.setAttribute('aLife', new THREE.BufferAttribute(age, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uOpacity: { value: opacity },
+      uSize: { value: size },
+      uMode: { value: mode === 'streak' ? 1 : 0 },
+    },
+    vertexShader: `
+      attribute float aSize; attribute float aLife;
+      varying float vLife;
+      void main() {
+        vLife = aLife;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * (1100.0 / max(0.1, -mv.z));
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor; uniform float uOpacity; uniform float uMode;
+      varying float vLife;
+      void main() {
+        if (vLife > 1.0) discard;
+        vec2 uv = gl_PointCoord - 0.5;
+        float d = length(uv);
+        if (d > 0.5) discard;
+        float alpha = uOpacity * smoothstep(0.5, 0.0, d);
+        alpha *= uMode > 0.5 ? (1.0 - vLife) : 1.0; // 拖尾随寿命淡出
+        if (alpha < 0.01) discard;
+        gl_FragColor = vec4(uColor, alpha);
+      }
+    `,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  scene.add(pts);
+
+  let t = 0;
+  const next = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), size, on: false };
+
+  function emit(i, x, y, z, vx, vy, vz, s = size, lf = life) {
+    pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+    vel[i * 3] = vx; vel[i * 3 + 1] = vy; vel[i * 3 + 2] = vz;
+    sizeArr[i] = s; age[i] = 0; maxLife[i] = lf;
+  }
+
+  const api = {
+    points: pts,
+    emit,
+    burst(x, y, z, n = 40, speed = 1, s = size, lf = life) {
+      let k = 0;
+      for (let i = 0; i < count && k < n; i++) {
+        if (age[i] > maxLife[i]) {
+          const a = Math.random() * Math.PI * 2, b = Math.random() * Math.PI;
+          const sp = speed * (0.5 + Math.random());
+          emit(i, x, y, z,
+            Math.sin(b) * Math.cos(a) * sp, Math.cos(b) * sp, Math.sin(b) * Math.sin(a) * sp,
+            s * (0.6 + Math.random() * 0.8), lf);
+          k++;
+        }
+      }
+    },
+    setNext(x, y, z, vx, vy, vz, s) { next.pos.set(x, y, z); next.vel.set(vx, vy, vz); next.size = s ?? size; next.on = true; },
+    update(dt) {
+      t += dt;
+      // 发射器自动出粒子
+      if (spawn && next.on) {
+        let k = 0;
+        for (let i = 0; i < count && k < 30; i++) {
+          if (age[i] > maxLife[i]) {
+            const p = spawn(t);
+            if (p) { emit(i, p.x, p.y, p.z, p.vx, p.vy, p.vz, p.s ?? size, p.life ?? life); k++; }
+          }
+        }
+      }
+      // 逐粒子积分
+      const dmp = Math.max(0, 1 - drag * dt);
+      for (let i = 0; i < count; i++) {
+        if (age[i] > maxLife[i]) continue;
+        age[i] += dt;
+        if (age[i] > maxLife[i]) { age[i] = 9999; continue; }
+        vel[i * 3] *= dmp; vel[i * 3 + 1] = vel[i * 3 + 1] * dmp + gravity * dt; vel[i * 3 + 2] *= dmp;
+        pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aSize.needsUpdate = true;
+      geo.attributes.aLife.needsUpdate = true;
+    },
+    setColor(c) { mat.uniforms.uColor.value.set(c); },
+    setSize(s) { mat.uniforms.uSize.value = s; },
+    setOpacity(o) { mat.uniforms.uOpacity.value = o; },
+    dispose() { geo.dispose(); mat.dispose(); scene.remove(pts); },
+  };
+  return api;
+}
+
+/* ============================================================
+   逼真模式——真实物理工具（轻量，无外部引擎）
+   重力 + 抛物 + 简谐振子 + 碰撞反弹（用于小球/石子/振动）
+   ============================================================ */
+export const Phys = {
+  // 自由落体/抛物：返回 t 时刻位置
+  projectile(p0, v0, t, g = 9.8) {
+    return {
+      x: p0.x + v0.x * t,
+      y: p0.y + v0.y * t - 0.5 * g * t * t,
+      z: p0.z + v0.z * t,
+    };
+  },
+  // 简谐振子（弹簧/振动/摆）：x(t)=A·cos(ωt+φ)
+  oscillator(A, omega, t, phi = 0) { return A * Math.cos(omega * t + phi); },
+  // 一维碰撞反弹（墙/地面）：带恢复系数
+  bounce(v, restitution = 0.7) { return -v * restitution; },
+  // 指数阻尼（空气阻力）
+  damp(v, k, dt) { return v * Math.exp(-k * dt); },
+};
+
 export function glowSprite() {
   if (_spriteTex) return _spriteTex;
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -433,4 +586,93 @@ export function createReadouts(el) {
       `<div class="ro"><span class="ro-l">${it.label}</span>
        <span class="ro-v">${it.val}<i>${it.unit || ''}</i></span></div>`).join('');
   };
+}
+
+/* ============================================================
+   逼真模式——Bloom 辉光后处理（自包含，opt-in，不影响现有场景）
+   用法：const bloom = enableBloom(stage.renderer, stage.scene, stage.camera, {strength:0.8, radius:0.6, threshold:0.85})
+        bloom.enabled = true/false
+   Note: 用高亮 emissive 物体触发辉光，需在场景里设 material.emissiveIntensity
+   ============================================================ */
+/* ============================================================
+   逼真模式——Bloom 辉光后处理（自包含，opt-in，不影响现有场景）
+   用法：const bloom = enableBloom(stage.renderer, stage.scene, stage.camera, {strength:0.8, radius:0.6, threshold:0.85})
+        bloom.enabled = true/false
+   Note: 主场景渲染到 rt，再与亮度提取的辉光 Additive 合成输出到屏幕。
+   用 oldRender 而非 renderer.render 避免包装递归。
+   ============================================================ */
+export function enableBloom(renderer, scene, camera, { strength = 0.7, radius = 0.5, threshold = 0.85 } = {}) {
+  let rt = null, bloomRT = null;
+  let sceneMat = null, bloomMat = null, quadScene = null, quadCam = null;
+  const oldRender = renderer.render.bind(renderer);
+
+  const api = { enabled: false, strength, radius, threshold, render: null };
+
+  function ensure() {
+    if (rt) return;
+    const w = Math.max(1, renderer.domElement.width), h = Math.max(1, renderer.domElement.height);
+    rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: true });
+    bloomRT = new THREE.WebGLRenderTarget(Math.max(4, w >> 3), Math.max(4, h >> 3), { type: THREE.UnsignedByteType });
+    quadScene = new THREE.Scene();
+    quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    sceneMat = new THREE.ShaderMaterial({
+      uniforms: { uScene: { value: null }, uGlow: { value: null }, uStrength: { value: api.strength } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+      fragmentShader: `
+        uniform sampler2D uScene; uniform sampler2D uGlow; uniform float uStrength;
+        varying vec2 vUv;
+        void main(){
+          vec3 c = texture2D(uScene, vUv).rgb;
+          vec3 g = texture2D(uGlow, vUv).rgb;
+          gl_FragColor = vec4(c + g * uStrength, 1.0);
+        }
+      `,
+    });
+    bloomMat = new THREE.ShaderMaterial({
+      uniforms: { uTex: { value: null }, uThreshold: { value: api.threshold } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+      fragmentShader: `
+        uniform sampler2D uTex; uniform float uThreshold;
+        varying vec2 vUv;
+        void main(){
+          vec3 c = texture2D(uTex, vUv).rgb;
+          float l = dot(c, vec3(0.2126,0.7152,0.0722));
+          float f = smoothstep(uThreshold, uThreshold+0.2, l);
+          gl_FragColor = vec4(c * f, 1.0);
+        }
+      `,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), sceneMat);
+    quadScene.add(mesh);
+    const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bloomMat);
+    quadScene.add(glowMesh);
+  }
+
+  // 独立渲染函数：主场景 → rt → 亮度提取 → 合成到屏幕
+  api.render = function (sc, cam) {
+    if (!api.enabled) { return oldRender(sc, cam); }
+    ensure();
+    const w = Math.max(1, renderer.domElement.width), h = Math.max(1, renderer.domElement.height);
+    if (rt.width !== w || rt.height !== h) { rt.setSize(w, h); bloomRT.setSize(Math.max(4, w >> 3), Math.max(4, h >> 3)); }
+    oldRender(sc, cam, rt);
+    bloomMat.uniforms.uTex.value = rt.texture;
+    sceneMat.uniforms.uScene.value = rt.texture;
+    quadScene.children.forEach(o => o.visible = (o.material === bloomMat));
+    renderer.setRenderTarget(bloomRT);
+    oldRender(quadScene, quadCam, bloomRT);
+    sceneMat.uniforms.uGlow.value = bloomRT.texture;
+    quadScene.children.forEach(o => o.visible = (o.material === sceneMat));
+    renderer.setRenderTarget(null);
+    oldRender(quadScene, quadCam, null);
+    return api;
+  };
+
+  api.enable = () => { api.enabled = true; };
+  api.disable = () => { api.enabled = false; };
+  api.setStrength = (s) => { api.strength = s; if (sceneMat) sceneMat.uniforms.uStrength.value = s; };
+  api.dispose = () => {
+    api.enabled = false;
+    if (rt) { rt.dispose(); bloomRT.dispose(); sceneMat.dispose(); bloomMat.dispose(); }
+  };
+  return api;
 }

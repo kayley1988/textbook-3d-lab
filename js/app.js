@@ -60,7 +60,15 @@ let cur = -1, scene = null, P = {}, playing = false, lastT = performance.now();
 let appGroup = null, riseT = 1, waitingBook = false;
 
 /* ---------- 教材联动 ---------- */
-const BOOK = BOOKS[DEFAULT_BOOK];
+// 书架数据库 book id → bindings SPREADS key 映射（只有物理八下有 SPREADS）
+const SHELF_ID_TO_BINDINGS = {
+  '119': 'physics8b',   // 物理八年级下册（ready）
+};
+// 从 ?book=<id> 读取要打开的教材；映射不到 bindings 时回退到默认书（物理八下）
+const URL_PARAMS = new URLSearchParams(location.search);
+const RAW_BOOK_ID = URL_PARAMS.get('book') || '';
+const BOOK_ID = SHELF_ID_TO_BINDINGS[RAW_BOOK_ID] || DEFAULT_BOOK;
+const BOOK = BOOKS[BOOK_ID];
 let pdfDoc = null, curRight = 0;
 const anchorOf = (u, v) =>
   new THREE.Vector3(u * book.W / 2, book.pageY, -book.D / 2 + v * book.D);

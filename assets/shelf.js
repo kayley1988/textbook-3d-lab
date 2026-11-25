@@ -122,7 +122,7 @@ function subjectCard(subject, books, color) {
 
     sp.onclick = () => {
       if (off) return toast(`《${b.short_title}》还没上架`);
-      location.href = `./reader.html?book=${b.id}`;
+      location.href = `./index.html?book=${b.id}&open=1`;
     };
     row.appendChild(sp);
   }
